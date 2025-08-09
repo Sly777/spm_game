@@ -1,0 +1,367 @@
+---
+description: SPM Save/Load System - Serialization, Data Integrity, Version Management
+globs:
+  - "scripts/autoloads/SaveManager.gd"
+  - "scripts/core/data/**/*.gd"
+  - "scripts/systems/managers/SaveManager.gd"
+  - "scripts/utils/helpers/SerializationUtils.gd"
+alwaysApply: false
+---
+
+# Save/Load System Architecture
+
+## Save System Principles
+
+- **Version compatibility**: Support loading older save versions with migration
+- **Data integrity**: Checksums and validation for corruption detection  
+- **Incremental saves**: Only save changed data for performance
+- **Compression**: Large save files should be compressed
+- **Error recovery**: Graceful handling of corrupted or invalid saves
+- **Psychology preservation**: Ensure all mood/relationship data survives save/load
+
+## Save Data Structure Standards
+
+```gdscript
+# Good: Comprehensive save data structure with versioning
+func compile_save_data() -> Dictionary:
+    var save_data = {
+        "metadata": {
+            "version": SAVE_FILE_VERSION,
+            "game_version": ProjectSettings.get_setting("application/config/version"),
+            "created_timestamp": Time.get_unix_time_from_system(),
+            "save_type": "manual",  # "manual", "auto", "checkpoint"
+            "playtime_seconds": GameManager.total_playtime,
+            "checksum": ""  # Will be calculated after data compilation
+        },
+        "game_state": {
+            "current_season": GameManager.current_season,
+            "current_week": GameManager.current_week,
+            "game_time": GameManager.game_time.duplicate(),
+            "game_state": GameManager.current_game_state,
+            "difficulty_settings": GameManager.difficulty_settings.duplicate()
+        },
+        "team_data": compile_team_data(),
+        "manager_data": compile_manager_data(),
+        "psychology_data": compile_psychology_data(),
+        "event_data": compile_event_data(),
+        "statistics": compile_statistics_data(),
+        "achievements": compile_achievements_data()
+    }
+    
+    # Calculate checksum for integrity verification
+    save_data.metadata.checksum = calculate_save_checksum(save_data)
+    return save_data
+
+func compile_team_data() -> Dictionary:
+    if not GameManager.current_team:
+        return {}
+    
+    var team_data = GameManager.current_team.to_dictionary()
+    
+    # Add detailed player data
+    team_data["players_detailed"] = []
+    for player in GameManager.current_team.players:
+        var player_data = player.to_dictionary()
+        # Include psychology state
+        player_data["psychology_state"] = PsychologyEngine.get_player_psychology_snapshot(player.id)
+        team_data.players_detailed.append(player_data)
+    
+    return team_data
+
+func compile_psychology_data() -> Dictionary:
+    return {
+        "active_player_moods": PsychologyEngine.active_player_moods.duplicate(true),
+        "global_mood_modifiers": PsychologyEngine.global_mood_modifiers.duplicate(true),
+        "mood_history": serialize_mood_history(),
+        "relationship_snapshots": serialize_relationship_data(),
+        "psychology_settings": PsychologyEngine.get_system_settings()
+    }
+```
+
+## Serialization Patterns for Complex Objects
+
+```gdscript
+# Good: Safe serialization with type preservation
+class_name SerializationUtils extends RefCounted
+
+static func serialize_object_array(objects: Array) -> Array:
+    var serialized = []
+    for obj in objects:
+        if obj == null:
+            continue
+            
+        if obj.has_method("to_dictionary"):
+            var data = obj.to_dictionary()
+            data["__class_name"] = obj.get_script().get_global_name()
+            serialized.append(data)
+        else:
+            push_warning("Object cannot be serialized: " + str(obj))
+    
+    return serialized
+
+static func deserialize_object_array(data: Array, expected_type: String = "") -> Array:
+    var objects = []
+    
+    for item_data in data:
+        if not item_data is Dictionary:
+            push_error("Invalid serialization data: expected Dictionary")
+            continue
+        
+        var class_name = item_data.get("__class_name", "")
+        if expected_type != "" and class_name != expected_type:
+            push_error("Type mismatch: expected " + expected_type + ", got " + class_name)
+            continue
+        
+        var obj = create_object_from_data(class_name, item_data)
+        if obj:
+            objects.append(obj)
+    
+    return objects
+
+static func create_object_from_data(class_name: String, data: Dictionary):
+    match class_name:
+        "Player":
+            var player = Player.new()
+            player.from_dictionary(data)
+            return player
+        "Manager":
+            var manager = Manager.new()
+            manager.from_dictionary(data)
+            return manager
+        "Team":
+            var team = Team.new()
+            team.from_dictionary(data)
+            return team
+        _:
+            push_error("Unknown class name for deserialization: " + class_name)
+            return null
+```
+
+## Data Integrity & Validation
+
+```gdscript
+# Good: Comprehensive save validation with detailed error reporting
+func validate_save_data(save_data: Dictionary) -> SaveValidationResult:
+    var result = SaveValidationResult.new()
+    
+    # Check metadata integrity
+    if not validate_metadata(save_data.metadata, result):
+        return result
+    
+    # Verify checksum
+    var calculated_checksum = calculate_save_checksum(save_data)
+    var stored_checksum = save_data.metadata.get("checksum", "")
+    
+    if calculated_checksum != stored_checksum:
+        result.add_error("Save data corrupted: checksum mismatch")
+        result.corruption_detected = true
+        return result
+    
+    # Validate game state consistency
+    if not validate_game_state_consistency(save_data, result):
+        return result
+    
+    # Validate psychology data integrity
+    if not validate_psychology_data(save_data.psychology_data, result):
+        return result
+    
+    # Validate relationships between entities
+    if not validate_entity_relationships(save_data, result):
+        return result
+    
+    result.success = true
+    return result
+
+func validate_psychology_data(psych_data: Dictionary, result: SaveValidationResult) -> bool:
+    # Validate mood data ranges
+    var player_moods = psych_data.get("active_player_moods", {})
+    for player_id in player_moods:
+        var moods = player_moods[player_id]
+        for mood_type in moods:
+            var value = moods[mood_type]
+            if not (value >= -100 and value <= 100):
+                result.add_error("Invalid mood value for player " + player_id + ": " + str(value))
+                return false
+    
+    # Validate relationship data
+    var relationships = psych_data.get("relationship_snapshots", {})
+    for relationship_key in relationships:
+        var rel_value = relationships[relationship_key]
+        if not (rel_value >= GameConstants.MIN_RELATIONSHIP and rel_value <= GameConstants.MAX_RELATIONSHIP):
+            result.add_error("Invalid relationship value: " + str(rel_value))
+            return false
+    
+    return true
+```
+
+## Version Migration System
+
+```gdscript
+# Good: Automatic save version migration
+class_name SaveMigration extends RefCounted
+
+const MIGRATION_FUNCTIONS = {
+    "0.9": "migrate_from_0_9_to_1_0",
+    "1.0": "migrate_from_1_0_to_1_1"
+}
+
+static func migrate_save_data(save_data: Dictionary) -> Dictionary:
+    var current_version = save_data.metadata.get("version", "0.9")
+    var target_version = SaveManager.SAVE_FILE_VERSION
+    
+    if current_version == target_version:
+        return save_data  # No migration needed
+    
+    print("Migrating save from version ", current_version, " to ", target_version)
+    
+    var migrated_data = save_data.duplicate(true)
+    var version_keys = MIGRATION_FUNCTIONS.keys()
+    
+    for version in version_keys:
+        if version_compare(current_version, version) < 0 and version_compare(version, target_version) <= 0:
+            var migration_func = MIGRATION_FUNCTIONS[version]
+            migrated_data = call(migration_func, migrated_data)
+            print("Applied migration: ", migration_func)
+    
+    # Update version in metadata
+    migrated_data.metadata.version = target_version
+    migrated_data.metadata.migrated_from = current_version
+    
+    return migrated_data
+
+static func migrate_from_0_9_to_1_0(save_data: Dictionary) -> Dictionary:
+    # Example migration: Convert old mood system to new format
+    if save_data.has("old_player_moods"):
+        save_data["psychology_data"] = {
+            "active_player_moods": convert_old_mood_format(save_data.old_player_moods),
+            "global_mood_modifiers": {},
+            "mood_history": []
+        }
+        save_data.erase("old_player_moods")
+    
+    # Add new required fields with defaults
+    if not save_data.has("achievements"):
+        save_data["achievements"] = {"unlocked": [], "progress": {}}
+    
+    return save_data
+
+static func version_compare(version1: String, version2: String) -> int:
+    var v1_parts = version1.split(".")
+    var v2_parts = version2.split(".")
+    
+    for i in range(max(v1_parts.size(), v2_parts.size())):
+        var v1_part = int(v1_parts[i]) if i < v1_parts.size() else 0
+        var v2_part = int(v2_parts[i]) if i < v2_parts.size() else 0
+        
+        if v1_part < v2_part:
+            return -1
+        elif v1_part > v2_part:
+            return 1
+    
+    return 0
+```
+
+## Save Performance Optimization
+
+```gdscript
+# Good: Incremental saving with change detection
+var last_save_hashes: Dictionary = {}
+var dirty_systems: Array[String] = []
+
+func save_incremental() -> bool:
+    var systems_to_save = get_dirty_systems()
+    if systems_to_save.is_empty():
+        print("No changes detected, skipping save")
+        return true
+    
+    print("Incremental save for systems: ", systems_to_save)
+    
+    var save_data = {}
+    for system in systems_to_save:
+        match system:
+            "team_data":
+                save_data["team_data"] = compile_team_data()
+            "psychology_data":
+                save_data["psychology_data"] = compile_psychology_data()
+            "event_data":
+                save_data["event_data"] = compile_event_data()
+    
+    return write_incremental_save(save_data)
+
+func get_dirty_systems() -> Array[String]:
+    var dirty = []
+    
+    # Check team data changes
+    var current_team_hash = hash_team_data()
+    if current_team_hash != last_save_hashes.get("team_data", 0):
+        dirty.append("team_data")
+        last_save_hashes["team_data"] = current_team_hash
+    
+    # Check psychology data changes  
+    var current_psych_hash = hash_psychology_data()
+    if current_psych_hash != last_save_hashes.get("psychology_data", 0):
+        dirty.append("psychology_data")
+        last_save_hashes["psychology_data"] = current_psych_hash
+    
+    return dirty
+
+func hash_team_data() -> int:
+    if not GameManager.current_team:
+        return 0
+    
+    var hash_source = str(GameManager.current_team.team_chemistry) + str(GameManager.current_team.players.size())
+    for player in GameManager.current_team.players:
+        hash_source += player.id + str(player.level) + str(player.experience_points)
+    
+    return hash_source.hash()
+```
+
+## Error Recovery & Backup System
+
+```gdscript
+# Good: Automatic backup creation and recovery
+const MAX_BACKUP_FILES = 5
+
+func create_backup_before_save(save_name: String):
+    var original_path = get_save_file_path(save_name)
+    if not FileAccess.file_exists(original_path):
+        return  # No existing file to backup
+    
+    var backup_path = original_path.get_basename() + "_backup_" + Time.get_datetime_string_from_system().replace(":", "-") + ".spm"
+    
+    var dir = DirAccess.open("user://saves/")
+    if dir:
+        dir.copy(original_path, backup_path)
+        print("Created backup: ", backup_path)
+        cleanup_old_backups(save_name)
+
+func cleanup_old_backups(save_name: String):
+    var dir = DirAccess.open("user://saves/")
+    if not dir:
+        return
+    
+    var backup_files = []
+    dir.list_dir_begin()
+    var file_name = dir.get_next()
+    
+    while file_name != "":
+        if file_name.begins_with(save_name + "_backup_") and file_name.ends_with(".spm"):
+            backup_files.append(file_name)
+        file_name = dir.get_next()
+    
+    if backup_files.size() > MAX_BACKUP_FILES:
+        backup_files.sort()  # Oldest first due to timestamp format
+        for i in range(backup_files.size() - MAX_BACKUP_FILES):
+            dir.remove(backup_files[i])
+            print("Removed old backup: ", backup_files[i])
+```
+
+## Save System Performance Requirements
+
+- Implement compression for save files >1MB
+- Use background threading for large save operations (avoid frame drops)
+- Cache serialization results for unchanged objects
+- Implement progress callbacks for large save/load operations
+- Limit auto-save frequency based on actual game changes, not time
+- Use binary formats for large data sets (statistics, history)
+- Implement save file size warnings and cleanup recommendations

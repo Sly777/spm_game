@@ -1,0 +1,91 @@
+[gd_scene load_steps=2 format=3 uid="uid://d2hsogo8wpcj3"]
+
+[ext_resource type="Script" uid="uid://dc7q2viupssvx" path="res://scripts/ui/dashboard/TeamOverview.gd" id="1_rv6to"]
+
+[node name="TeamOverview" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_rv6to")
+
+[node name="HeaderContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 60.0
+grow_horizontal = 2
+
+[node name="BackButton" type="Button" parent="HeaderContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 40)
+text = "< Main Menu"
+
+[node name="TeamNameLabel" type="Label" parent="HeaderContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 24
+text = "Team: Loading..."
+horizontal_alignment = 1
+
+[node name="MainContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 70.0
+offset_left = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="TeamInfoPanel" type="VBoxContainer" parent="MainContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.3
+
+[node name="TeamStatsLabel" type="Label" parent="MainContainer/TeamInfoPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Team Statistics"
+horizontal_alignment = 1
+
+[node name="StatsContainer" type="VBoxContainer" parent="MainContainer/TeamInfoPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="PlayerCountLabel" type="Label" parent="MainContainer/TeamInfoPanel/StatsContainer"]
+layout_mode = 2
+text = "Players: 0"
+
+[node name="AverageAgeLabel" type="Label" parent="MainContainer/TeamInfoPanel/StatsContainer"]
+layout_mode = 2
+text = "Average Age: 0"
+
+[node name="TeamMoraleLabel" type="Label" parent="MainContainer/TeamInfoPanel/StatsContainer"]
+layout_mode = 2
+text = "Team Morale: Neutral"
+
+[node name="PlayersPanel" type="VBoxContainer" parent="MainContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 0.7
+
+[node name="PlayersHeaderLabel" type="Label" parent="MainContainer/PlayersPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Squad Members"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainContainer/PlayersPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PlayersList" type="VBoxContainer" parent="MainContainer/PlayersPanel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5

@@ -1,0 +1,152 @@
+---
+description: SPM Autoload Systems - Global Managers and Singletons
+globs:
+  - "scripts/autoloads/**/*.gd"
+alwaysApply: false
+---
+
+# Global Systems & Singleton Architecture
+
+## Autoload Design Principles
+
+- **Systems only**: Only systems and managers should be autoloads, never data objects
+- **Loose coupling**: Use SignalBus for cross-system communication
+- **Performance aware**: Implement batching and caching for expensive operations
+- **Memory management**: Clean up cached data and temporary objects
+- **Initialization order**: Dependencies should be clear and properly ordered
+
+## Global State Management (GameManager)
+
+```gdscript
+# Good: Centralized game state with proper validation
+func change_game_state(new_state: GameState):
+    if not validate_state_transition(current_game_state, new_state):
+        push_error("Invalid state transition from " + str(current_game_state) + " to " + str(new_state))
+        return
+    
+    var old_state = current_game_state
+    current_game_state = new_state
+    cleanup_state_data(old_state)
+    initialize_state_data(new_state)
+    game_state_changed.emit(new_state)
+
+# Bad: Direct state change without validation
+func change_game_state(new_state: GameState):
+    current_game_state = new_state
+```
+
+## PsychologyEngine Patterns
+
+```gdscript
+# Good: Batch processing with performance limits
+func _process_psychology_batch():
+    var processed_count = 0
+    var start_time = Time.get_ticks_usec()
+    
+    while processed_count < max_calculations_per_frame and not psychology_update_queue.is_empty():
+        var player_id = psychology_update_queue.pop_front()
+        process_player_psychology_update(player_id)
+        processed_count += 1
+        
+        # Performance safety valve
+        if Time.get_ticks_usec() - start_time > 16000:  # 16ms budget
+            break
+
+# Good: Cache management with memory limits
+func add_to_psychology_cache(key: String, value: Dictionary):
+    psychology_calculation_cache[key] = value
+    
+    if psychology_calculation_cache.size() > MAX_CACHE_SIZE:
+        clear_oldest_cache_entries(CACHE_CLEANUP_COUNT)
+```
+
+## SignalBus Communication Patterns
+
+```gdscript
+# Good: Typed signals with clear data structures
+signal player_mood_crisis(player_id: String, crisis_type: String, severity: int)
+signal team_chemistry_changed(team_id: String, old_value: int, new_value: int, cause: String)
+
+# Usage pattern:
+func emit_mood_crisis(player: Player, crisis_type: String):
+    var severity = calculate_crisis_severity(player, crisis_type)
+    player_mood_crisis.emit(player.id, crisis_type, severity)
+    
+    # Also emit user-facing notification
+    emit_notification(
+        player.name + " is experiencing a " + crisis_type + " crisis!",
+        "warning",
+        5.0
+    )
+
+# Bad: Vague signals with unclear data
+signal something_happened(data)
+```
+
+## Save/Load System Patterns
+
+```gdscript
+# Good: Versioned save data with validation
+func compile_save_data() -> Dictionary:
+    var save_data = {
+        "version": SAVE_FILE_VERSION,
+        "timestamp": Time.get_unix_time_from_system(),
+        "checksum": "",
+        "game_state": compile_game_state_data(),
+        "psychology_data": compile_psychology_data(),
+        "event_data": compile_event_data()
+    }
+    
+    # Add checksum for integrity checking
+    save_data["checksum"] = calculate_save_checksum(save_data)
+    return save_data
+
+func validate_save_data(data: Dictionary) -> bool:
+    if not data.has("version") or data.version != SAVE_FILE_VERSION:
+        return false
+    
+    var calculated_checksum = calculate_save_checksum(data)
+    return calculated_checksum == data.get("checksum", "")
+```
+
+## Performance Monitoring Integration
+
+```gdscript
+# Good: System performance tracking
+func track_system_performance(system_name: String, operation_name: String, duration_ms: float):
+    if not monitoring_enabled:
+        return
+    
+    if duration_ms > PERFORMANCE_WARNING_THRESHOLD:
+        var warning = system_name + "." + operation_name + " took " + str(duration_ms) + "ms"
+        performance_warnings.append(warning)
+        SignalBus.performance_warning.emit(system_name, warning)
+    
+    # Update performance averages
+    update_system_averages(system_name, operation_name, duration_ms)
+
+# Usage in systems:
+func expensive_psychology_calculation():
+    var start_time = Time.get_ticks_usec()
+    
+    # ... do calculation ...
+    
+    var duration = (Time.get_ticks_usec() - start_time) / 1000.0
+    PerformanceMonitor.track_system_performance("PsychologyEngine", "mood_calculation", duration)
+```
+
+## Memory Management Requirements
+
+- Implement cache size limits with LRU eviction
+- Clean up signal connections when objects are freed
+- Use object pooling for frequently created/destroyed objects
+- Monitor memory usage and emit warnings when thresholds exceeded
+- Implement proper cleanup in _exit_tree() methods
+
+## Cross-System Communication
+
+- Use SignalBus for loose coupling between autoloads
+- Pass structured data (Dictionaries) rather than raw objects
+- Validate all cross-system data before processing
+- Implement retry logic for critical system communications
+- Log all major system interactions for debugging

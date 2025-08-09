@@ -1,0 +1,303 @@
+---
+description: SPM Debug Tools & Development Utilities
+globs:
+  - "scripts/debug/**/*.gd"
+  - "scripts/autoloads/DebugManager.gd"
+  - "scripts/utils/helpers/DebugUtils.gd"
+alwaysApply: false
+---
+
+# Development & Debugging Tools
+
+## Debug System Architecture
+
+- **Debug mode only**: Debug tools only active in debug builds
+- **Performance monitoring**: Track psychology calculation performance
+- **Psychology visualization**: Tools to visualize mood states, relationships
+- **Event testing**: Utilities to trigger specific events for testing
+- **Save debugging**: Tools to inspect and modify save data
+- **Automated testing**: Unit tests for critical psychology calculations
+
+## Psychology Debug Visualization
+
+```gdscript
+# Good: Comprehensive psychology debugging tools
+class_name PsychologyDebugger extends Control
+
+var psychology_graph: Graph2D
+var mood_timeline: Timeline
+var relationship_matrix: RelationshipMatrix
+
+func _ready():
+    if not OS.is_debug_build():
+        queue_free()
+        return
+    
+    setup_debug_panels()
+    connect_psychology_signals()
+
+func setup_debug_panels():
+    # Create mood visualization
+    mood_timeline = Timeline.new()
+    mood_timeline.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+    add_child(mood_timeline)
+    
+    # Create relationship matrix
+    relationship_matrix = RelationshipMatrix.new()
+    relationship_matrix.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+    add_child(relationship_matrix)
+
+func update_psychology_display(player_id: String):
+    if not is_inside_tree():
+        return
+    
+    var mood_effects = PsychologyEngine.get_player_mood_effects(player_id)
+    var mood_history = PsychologyEngine.get_player_mood_history(player_id)
+    
+    mood_timeline.update_data(player_id, mood_history)
+    psychology_graph.update_mood_effects(player_id, mood_effects)
+
+# Debug event triggering
+func trigger_debug_event(event_id: String, target_player_id: String = ""):
+    if not EventManager.loaded_events.has(event_id):
+        push_error("Debug: Event not found: " + event_id)
+        return
+    
+    var event = EventManager.loaded_events[event_id]
+    print("DEBUG: Triggering event '", event.title, "' for testing")
+    
+    # Override prerequisites for testing
+    var original_prereqs = event.prerequisites.duplicate()
+    event.prerequisites.clear()
+    
+    EventManager.trigger_event(event)
+    
+    # Restore prerequisites
+    event.prerequisites = original_prereqs
+```
+
+## Event System Debug Tools
+
+```gdscript
+# Good: Event testing and validation utilities
+class_name EventDebugger extends RefCounted
+
+static func test_all_events() -> Dictionary:
+    var results = {
+        "total_tested": 0,
+        "passed": 0,
+        "failed": 0,
+        "errors": []
+    }
+    
+    for event_id in EventManager.loaded_events:
+        var event = EventManager.loaded_events[event_id]
+        var test_result = test_event(event)
+        
+        results.total_tested += 1
+        if test_result.success:
+            results.passed += 1
+        else:
+            results.failed += 1
+            results.errors.append({
+                "event_id": event_id,
+                "error": test_result.error_message
+            })
+    
+    return results
+
+static func test_event(event: GameEvent) -> TestResult:
+    var result = TestResult.new()
+    
+    # Test event structure
+    if not validate_event_structure(event, result):
+        return result
+    
+    # Test all choice combinations
+    for choice in event.choices:
+        if not test_choice_effects(event, choice, result):
+            return result
+    
+    # Test prerequisite logic
+    if not test_prerequisites(event, result):
+        return result
+    
+    result.success = true
+    return result
+
+static func simulate_event_outcomes(event: GameEvent, iterations: int = 100) -> Dictionary:
+    var outcomes = {}
+    
+    # Create test scenario
+    var test_player = create_test_player()
+    var test_team = create_test_team_with_player(test_player)
+    
+    for i in range(iterations):
+        # Randomize test conditions
+        randomize_test_conditions(test_player, test_team)
+        
+        # Test each choice
+        for choice in event.choices:
+            var outcome_key = choice.id
+            if not outcomes.has(outcome_key):
+                outcomes[outcome_key] = {
+                    "mood_changes": [],
+                    "relationship_changes": [],
+                    "performance_impacts": []
+                }
+            
+            var effects = simulate_choice_effects(event, choice, test_player)
+            outcomes[outcome_key].mood_changes.append(effects.mood_changes)
+            outcomes[outcome_key].relationship_changes.append(effects.relationship_changes)
+    
+    return analyze_outcome_patterns(outcomes)
+```
+
+## Save System Debugging
+
+```gdscript
+# Good: Save data inspection and manipulation tools
+class_name SaveDebugger extends RefCounted
+
+static func inspect_save_file(file_path: String) -> Dictionary:
+    var inspection = {
+        "file_info": {},
+        "data_structure": {},
+        "validation_results": {},
+        "recommendations": []
+    }
+    
+    var file = FileAccess.open(file_path, FileAccess.READ)
+    if not file:
+        inspection.file_info["error"] = "Cannot open file"
+        return inspection
+    
+    # File information
+    inspection.file_info = {
+        "size_bytes": file.get_length(),
+        "last_modified": FileAccess.get_modified_time(file_path)
+    }
+    
+    var json_text = file.get_as_text()
+    file.close()
+    
+    # Parse and analyze
+    var json = JSON.new()
+    if json.parse(json_text) == OK:
+        var save_data = json.data
+        inspection.data_structure = analyze_save_structure(save_data)
+        inspection.validation_results = validate_save_integrity(save_data)
+        inspection.recommendations = generate_save_recommendations(save_data)
+    
+    return inspection
+
+static func modify_save_data(file_path: String, modifications: Dictionary) -> bool:
+    var save_data = load_save_data_for_editing(file_path)
+    if save_data.is_empty():
+        return false
+    
+    # Apply modifications safely
+    for key_path in modifications:
+        var value = modifications[key_path]
+        set_nested_value(save_data, key_path.split("."), value)
+    
+    # Recalculate checksum
+    save_data.metadata.checksum = SaveManager.calculate_save_checksum(save_data)
+    save_data.metadata.modified_by_debug_tools = true
+    save_data.metadata.modification_timestamp = Time.get_unix_time_from_system()
+    
+    # Save modified data
+    return write_modified_save_data(file_path, save_data)
+
+static func create_test_save(scenario_name: String) -> String:
+    var test_scenarios = {
+        "high_chemistry": create_high_chemistry_scenario(),
+        "mood_crisis": create_mood_crisis_scenario(),
+        "relationship_problems": create_relationship_problems_scenario(),
+        "event_chain_test": create_event_chain_scenario()
+    }
+    
+    if not test_scenarios.has(scenario_name):
+        push_error("Unknown test scenario: " + scenario_name)
+        return ""
+    
+    var save_data = test_scenarios[scenario_name]
+    var file_path = "user://saves/debug_" + scenario_name + "_" + Time.get_datetime_string_from_system().replace(":", "-") + ".spm"
+    
+    if SaveManager.write_save_data(file_path, save_data):
+        print("Created test save: ", file_path)
+        return file_path
+    
+    return ""
+```
+
+## Performance Profiling Tools
+
+```gdscript
+# Good: Psychology system performance monitoring
+class_name PsychologyProfiler extends RefCounted
+
+var performance_samples: Dictionary = {}
+var sample_history: Array = []
+const MAX_SAMPLE_HISTORY = 1000
+
+func profile_psychology_calculation(player_id: String, calculation_type: String, callable: Callable) -> Variant:
+    var start_time = Time.get_ticks_usec()
+    var result = callable.call()
+    var end_time = Time.get_ticks_usec()
+    
+    var duration_ms = (end_time - start_time) / 1000.0
+    record_performance_sample(calculation_type, duration_ms)
+    
+    if duration_ms > 16.0:  # Longer than one frame at 60fps
+        print("PERFORMANCE WARNING: ", calculation_type, " took ", duration_ms, "ms for player ", player_id)
+    
+    return result
+
+func record_performance_sample(operation: String, duration_ms: float):
+    if not performance_samples.has(operation):
+        performance_samples[operation] = {
+            "samples": [],
+            "total_time": 0.0,
+            "min_time": duration_ms,
+            "max_time": duration_ms,
+            "call_count": 0
+        }
+    
+    var stats = performance_samples[operation]
+    stats.samples.append(duration_ms)
+    stats.total_time += duration_ms
+    stats.min_time = min(stats.min_time, duration_ms)
+    stats.max_time = max(stats.max_time, duration_ms)
+    stats.call_count += 1
+    
+    # Keep sample history limited
+    if stats.samples.size() > 100:
+        stats.samples.pop_front()
+    
+    # Record in global history
+    sample_history.append({
+        "operation": operation,
+        "duration_ms": duration_ms,
+        "timestamp": Time.get_ticks_usec()
+    })
+    
+    if sample_history.size() > MAX_SAMPLE_HISTORY:
+        sample_history.pop_front()
+
+func get_performance_report() -> String:
+    var report = "=== Psychology System Performance Report ===\n"
+    
+    for operation in performance_samples:
+        var stats = performance_samples[operation]
+        var avg_time = stats.total_time / stats.call_count
+        
+        report += "Operation: %s\n" % operation
+        report += "  Calls: %d\n" % stats.call_count
+        report += "  Average: %.2f ms\n" % avg_time
+        report += "  Min: %.2f ms\n" % stats.min_time
+        report += "  Max: %.2f ms\n" % stats.max_time
+        report += "  Total: %.2f ms\n\n" % stats.total_time
+    
+    return report
+```

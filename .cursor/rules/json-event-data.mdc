@@ -1,0 +1,307 @@
+---
+description: SPM JSON Event System - Data Structure, Loading, Validation
+globs:
+  - "data/events/**/*.json"
+  - "scripts/events/**/EventLoader.gd"
+  - "scripts/events/**/EventData.gd"
+  - "scripts/events/**/EventValidator.gd"
+alwaysApply: false
+---
+
+# JSON Event Data System
+
+## JSON Event Structure Standards
+
+- **Hierarchical organization**: Events grouped by category and complexity
+- **Comprehensive validation**: All JSON must validate against schema before loading
+- **Psychology integration**: All events must specify mood and relationship effects
+- **Localization ready**: All text strings use keys for future translation support
+- **Version control**: Events include version numbers for save game compatibility
+
+## Standard JSON Event Format
+
+```json
+{
+  "metadata": {
+    "version": "1.0",
+    "category": "training",
+    "complexity_level": 2,
+    "author": "SPM Team",
+    "last_modified": "2024-01-15"
+  },
+  "event": {
+    "id": "training_intensity_debate",
+    "title": "Training Intensity Debate",
+    "description": "Your star player {player_name} questions the intensity of today's training session.",
+    "category": "training",
+    "subcategory": "player_feedback",
+    "probability_weight": 75,
+    "cooldown_days": 14,
+    "prerequisites": {
+      "player_condition": {
+        "energy_level": "<60",
+        "recent_training_load": ">80",
+        "personality_types": ["Prima Donna", "Perfectionist"]
+      },
+      "team_condition": {
+        "team_morale": "<70",
+        "recent_results": "mixed"
+      },
+      "manager_condition": {
+        "management_style": ["Authoritarian", "Hands-off"],
+        "authority_level": "<70"
+      }
+    },
+    "choices": [
+      {
+        "id": "reduce_intensity",
+        "text": "Reduce training intensity for today",
+        "description": "Show understanding and dial back the session",
+        "immediate_effects": {
+          "mood_changes": {
+            "target_player": {"relieved": 25, "grateful": 15},
+            "team_overall": {"relaxed": 10}
+          },
+          "relationship_changes": {
+            "manager_player": 10,
+            "team_discipline": -5
+          }
+        },
+        "long_term_effects": {
+          "training_effectiveness": -0.1,
+          "player_respect": 5,
+          "precedent_set": "lenient_training"
+        },
+        "personality_modifiers": {
+          "Prima Donna": {
+            "mood_multiplier": 1.5,
+            "relationship_bonus": 5
+          },
+          "Team Player": {
+            "mood_multiplier": 0.8,
+            "team_harmony_bonus": 10
+          }
+        }
+      },
+      {
+        "id": "maintain_intensity",
+        "text": "Maintain the planned training intensity",
+        "description": "Stand firm on your training philosophy",
+        "immediate_effects": {
+          "mood_changes": {
+            "target_player": {"frustrated": -20, "determined": 10},
+            "team_overall": {"disciplined": 15}
+          },
+          "relationship_changes": {
+            "manager_player": -10,
+            "team_discipline": 10
+          }
+        },
+        "management_style_modifiers": {
+          "Authoritarian": {
+            "authority_bonus": 5,
+            "discipline_bonus": 5
+          },
+          "Democratic": {
+            "relationship_penalty": -5,
+            "team_morale_impact": -5
+          }
+        }
+      }
+    ],
+    "follow_up_events": [
+      {
+        "condition": "choice_made == 'reduce_intensity' && player.personality_type == 'Prima Donna'",
+        "event_id": "prima_donna_expects_special_treatment",
+        "delay_days": 3,
+        "probability": 0.6
+      }
+    ]
+  }
+}
+```
+
+## Event Loading & Validation Patterns
+
+```gdscript
+# Good: Comprehensive event validation with detailed error reporting
+class_name EventValidator extends RefCounted
+
+static func validate_event_json(json_data: Dictionary) -> ValidationResult:
+    var result = ValidationResult.new()
+    
+    # Validate required structure
+    if not validate_required_fields(json_data, result):
+        return result
+    
+    # Validate psychology data integrity
+    if not validate_psychology_effects(json_data.event, result):
+        return result
+    
+    # Validate prerequisite logic
+    if not validate_prerequisites(json_data.event.prerequisites, result):
+        return result
+    
+    # Validate choice consequences
+    for choice in json_data.event.choices:
+        if not validate_choice_effects(choice, result):
+            return result
+    
+    result.success = true
+    return result
+
+static func validate_psychology_effects(event_ choice in event_data.choices:
+        var effects = choice.immediate_effects
+        
+        # Ensure mood changes are within valid ranges
+        if effects.has("mood_changes"):
+            for target in effects.mood_changes:
+                for mood_type in effects.mood_changes[target]:
+                    var value = effects.mood_changes[target][mood_type]
+                    if not (value >= -100 and value <= 100):
+                        result.add_error("Mood change value out of range: " + str(value))
+                        return false
+        
+        # Validate relationship changes
+        if effects.has("relationship_changes"):
+            for rel_type in effects.relationship_changes:
+                var value = effects.relationship_changes[rel_type]
+                if not (value >= -50 and value <= 50):
+                    result.add_error("Relationship change too extreme: " + str(value))
+                    return false
+    
+    return true
+```
+
+## Event Loading Performance Patterns
+
+```gdscript
+# Good: Efficient batch loading with error handling
+class_name EventLoader extends RefCounted
+
+var loaded_events: Dictionary = {}
+var loading_errors: Array[String] = []
+var event_cache: Dictionary = {}
+
+func load_all_events() -> bool:
+    var success = true
+    var event_files = get_all_event_files()
+    
+    print("Loading ", event_files.size(), " event files...")
+    
+    for file_path in event_files:
+        if not load_event_file(file_path):
+            success = false
+    
+    if success:
+        post_process_events()
+        print("Successfully loaded ", loaded_events.size(), " events")
+    else:
+        print("Event loading completed with errors: ", loading_errors.size())
+    
+    return success
+
+func load_event_file(file_path: String) -> bool:
+    var file = FileAccess.open(file_path, FileAccess.READ)
+    if not file:
+        loading_errors.append("Cannot open file: " + file_path)
+        return false
+    
+    var json_text = file.get_as_text()
+    file.close()
+    
+    var json = JSON.new()
+    var parse_result = json.parse(json_text)
+    
+    if parse_result != OK:
+        loading_errors.append("JSON parse error in " + file_path + ": " + json.error_string)
+        return false
+    
+    var validation_result = EventValidator.validate_event_json(json.data)
+    if not validation_result.success:
+        loading_errors.append("Validation failed for " + file_path + ": " + validation_result.get_error_summary())
+        return false
+    
+    var event = create_event_from_json(json.data)
+    loaded_events[event.id] = event
+    
+    return true
+
+# Good: Event creation with proper object construction
+func create_event_from_json(json_data: Dictionary) -> GameEvent:
+    var event_data = json_data.event
+    var event = GameEvent.new()
+    
+    # Basic properties
+    event.id = event_data.id
+    event.title = event_data.title
+    event.description = event_data.description
+    event.category = event_data.category
+    event.probability_weight = event_data.probability_weight
+    event.cooldown_days = event_data.get("cooldown_days", 0)
+    
+    # Convert JSON prerequisites to internal format
+    event.prerequisites = parse_prerequisites(event_data.prerequisites)
+    
+    # Create choice objects
+    for choice_data in event_data.choices:
+        var choice = EventChoice.new()
+        choice.id = choice_data.id
+        choice.text = choice_data.text
+        choice.description = choice_data.get("description", "")
+        choice.immediate_effects = choice_data.immediate_effects
+        choice.long_term_effects = choice_data.get("long_term_effects", {})
+        choice.personality_modifiers = choice_data.get("personality_modifiers", {})
+        
+        event.choices.append(choice)
+    
+    return event
+```
+
+## Event File Organization Standards
+
+```text
+data/events/
+├── training/
+│   ├── basic/
+│   │   ├── training_feedback.json
+│   │   └── training_injury.json
+│   └── advanced/
+│       ├── tactical_disagreement.json
+│       └── fitness_methodology_debate.json
+├── media/
+│   ├── interviews/
+│   │   ├── pre_match_interview.json
+│   │   └── post_match_reaction.json
+│   └── social_media/
+│       ├── controversial_post.json
+│       └── fan_interaction.json
+├── personal/
+│   ├── family/
+│   │   ├── family_emergency.json
+│   │   └── relationship_issues.json
+│   └── career/
+│       ├── contract_negotiation.json
+│       └── transfer_interest.json
+├── team_dynamics/
+│   ├── conflicts/
+│   │   ├── player_argument.json
+│   │   └── leadership_challenge.json
+│   └── bonding/
+│       ├── team_meal_success.json
+│       └── group_activity.json
+└── schema/
+    ├── event_schema.json
+    ├── choice_schema.json
+    └── validation_rules.json
+```
+
+## JSON Data Quality Requirements
+
+- All text strings must be grammatically correct and contextually appropriate
+- Mood values must be balanced (avoid extreme swings unless justified)
+- Relationship changes should be proportional to event severity
+- Prerequisites must be logically sound and testable
+- Follow-up event chains must be carefully designed to avoid infinite loops
+- Include sufficient variety in personality-based modifications
+- Test all events with different personality types and game states

@@ -1,0 +1,122 @@
+---
+description: Soccer Psychology Manager - Core Architecture Standards
+alwaysApply: true
+---
+
+# SPM Core Architecture & Godot Standards
+
+## Project Overview
+
+Soccer Psychology Manager (SPM) - A psychology-driven football management game built in Godot 4.x focusing on player moods, relationships, and team dynamics.
+
+## Core Architecture Principles
+
+- **Entity-Component-System approach**: Entities in `scripts/core/entities/`, components in specialized folders
+- **Psychology-first design**: All game systems consider psychological impact
+- **Modular systems**: Each system (Psychology, Events, UI) is self-contained
+- **Global singletons**: Only for systems (GameManager, PsychologyEngine), never for data
+- **Data-driven approach**: Events, personalities, and behaviors loaded from JSON
+
+## GDScript Standards
+
+- Use `class_name` for all major classes to enable global access
+- Prefer composition over inheritance for complex behaviors
+- Use signals for loose coupling between systems
+- Implement `to_dictionary()` and `from_dictionary()` for all data classes
+- Always validate null checks for Player, Manager, Team references
+
+## File Organization
+
+**Complete Project Architecture:**
+
+```text
+├── scenes/                     # Godot scene files (.tscn)
+│   ├── main/                  # Main game scenes
+│   ├── ui/                    # User interface scenes
+│   │   ├── menus/            # Main menu, settings, etc.
+│   │   ├── dashboard/        # Team management screens
+│   │   ├── dialogs/          # Event dialogs, confirmations
+│   │   └── components/       # Reusable UI components
+│   ├── match/                 # Match simulation scenes
+│   └── debug/                 # Debug and development scenes
+├── scripts/                   # GDScript source files
+│   ├── core/                 # Core game systems
+│   │   ├── entities/         # Main game objects (Player, Manager, Team)
+│   │   ├── data/             # Data structure classes
+│   │   └── base/             # Base classes and interfaces
+│   ├── psychology/           # Psychology system implementation
+│   │   ├── mood/             # Mood management and calculations
+│   │   ├── personality/      # Personality types and effects
+│   │   └── relationships/    # Relationship dynamics
+│   ├── events/               # Event system architecture
+│   │   ├── core/             # Event management and processing
+│   │   ├── types/            # Event type definitions
+│   │   └── chains/           # Event chain management
+│   ├── systems/              # Game systems and managers
+│   │   ├── managers/         # System controllers
+│   │   ├── simulation/       # Match and training simulation
+│   │   ├── progression/      # Experience and skill development
+│   │   └── ai/               # AI behavior systems
+│   ├── ui/                   # UI controllers and logic
+│   │   ├── controllers/      # UI screen controllers
+│   │   ├── components/       # UI component scripts
+│   │   └── dialogs/          # Dialog management scripts
+│   ├── utils/                # Utility classes and helpers
+│   │   ├── helpers/          # Helper functions and utilities
+│   │   ├── constants/        # Game constants and shared values
+│   │   └── extensions/       # Language extensions
+│   ├── data_structures/      # Custom data types
+│   ├── autoloads/            # Singleton systems
+│   ├── debug/                # Development and debugging tools
+│   └── tests/                # Unit and integration tests
+│       ├── unit/             # Unit tests
+│       └── integration/      # Integration tests
+├── data/                     # Game data files
+│   ├── events/              # JSON event definitions
+│   │   ├── training/        # Training-related events
+│   │   ├── media/           # Media and interview events
+│   │   ├── personal/        # Personal life events
+│   │   ├── team_dynamics/   # Team relationship events
+│   │   ├── match/           # Match-related events
+│   │   ├── seasonal/        # Season progression events
+│   │   ├── event_chains/    # Multi-part event sequences
+│   │   └── schema/          # JSON validation schemas
+│   ├── personalities/       # Personality type definitions
+│   ├── teams/              # Team data and configurations
+│   ├── localization/       # Translation files
+│   │   ├── en/             # English translations
+│   │   └── es/             # Spanish translations
+│   ├── saves/              # Save game files (user data)
+│   │   ├── autosaves/      # Automatic saves
+│   │   ├── manual_saves/   # Manual saves
+│   │   └── backups/        # Save backups
+│   └── config/             # Game configuration
+├── assets/                 # Game assets
+│   ├── images/            # Textures, sprites, UI graphics
+│   │   ├── ui/            # User interface graphics
+│   │   ├── players/       # Player-related images
+│   │   ├── teams/         # Team logos, kits, stadiums
+│   │   └── match/         # Match simulation graphics
+│   ├── audio/             # Sound effects and music
+│   │   ├── music/         # Background music
+│   │   ├── sfx/           # Sound effects
+│   │   └── voice/         # Voice acting and commentary
+│   ├── fonts/             # Typography assets
+│   └── themes/           # Godot UI themes
+├── tools/                # Development tools and scripts
+```
+
+## Naming Conventions
+
+- **PascalCase**: Classes, enums, signals (`class_name Player`, `signal MoodChanged`)
+- **snake_case**: Variables, functions, files (`player_mood`, `calculate_chemistry()`)
+- **SCREAMING_SNAKE_CASE**: Constants (`MAX_RELATIONSHIP`, `DEFAULT_SKILL_VALUE`)
+- **Descriptive names**: `manager_relationship` not `mgr_rel`
+
+## Psychology Integration Requirements
+
+- All player actions must consider current mood effects
+- Relationship changes should trigger mood updates
+- Use PsychologyEngine for mood calculations, not direct Player properties
+- Cache expensive psychology calculations
+- Psychology effects should be percentage-based modifiers (0.0-1.0)

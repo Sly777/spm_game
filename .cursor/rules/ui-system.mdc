@@ -1,0 +1,190 @@
+---
+description: SPM UI System - Controllers, Components, Dialogs
+globs:
+  - "scripts/ui/**/*.gd"
+  - "scenes/ui/**/*.tscn"
+alwaysApply: false
+---
+
+# UI System Architecture
+
+## UI Design Principles
+
+- **MVC Pattern**: Separate UI controllers from data logic
+- **Psychology visualization**: UI should clearly show mood states, relationships
+- **Responsive design**: Adapt to different screen sizes and resolutions
+- **Accessibility**: Support keyboard navigation, screen readers
+- **Performance**: Efficient updates, avoid UI rebuilds every frame
+
+## UI Controller Patterns
+
+```gdscript
+# Good: Clean separation between UI and data
+class_name PlayerDetailController extends Control
+
+var current_player: Player
+var psychology_display: MoodIndicatorComponent
+var relationship_graph: RelationshipGraphComponent
+
+func _ready():
+    SignalBus.player_mood_crisis.connect(_on_mood_crisis)
+    PsychologyEngine.mood_changed.connect(_on_mood_changed)
+
+func display_player(player: Player):
+    if current_player == player:
+        return  # Already displaying this player
+    
+    current_player = player
+    update_player_display()
+
+func update_player_display():
+    if not current_player:
+        return
+    
+    # Update basic info
+    $PlayerInfo/Name.text = current_player.name
+    $PlayerInfo/Age.text = str(current_player.age)
+    
+    # Update psychology components
+    var mood_effects = PsychologyEngine.get_player_mood_effects(current_player.id)
+    psychology_display.update_mood_display(mood_effects)
+    relationship_graph.update_relationships(current_player.teammate_relationships)
+
+# Bad: Direct data manipulation in UI
+func on_mood_slider_changed(value: float):
+    current_player.current_moods["happy"] = value  # Don't do this!
+```
+
+## Psychology Visualization Components
+
+```gdscript
+# Good: Dedicated mood visualization component
+class_name MoodIndicatorComponent extends Control
+
+var mood_bars: Dictionary = {}  # mood_type -> ProgressBar
+var mood_colors: Dictionary = {
+    "angry": Color.RED,
+    "confident": Color.GREEN,
+    "anxious": Color.YELLOW,
+    "motivated": Color.BLUE
+}
+
+func update_mood_display(mood_effects: Dictionary):
+    for mood_type in mood_effects:
+        var effect_value = mood_effects[mood_type]
+        var mood_bar = mood_bars.get(mood_type)
+        
+        if mood_bar:
+            # Convert effect (-1.0 to 1.0) to progress bar (0 to 100)
+            var progress = (effect_value + 1.0) * 50.0
+            animate_mood_change(mood_bar, progress)
+            
+            # Update color based on intensity
+            update_mood_color(mood_bar, mood_type, abs(effect_value))
+
+func animate_mood_change(bar: ProgressBar, target_value: float):
+    var tween = create_tween()
+    tween.tween_property(bar, "value", target_value, 0.5)
+```
+
+## Dialog System Patterns
+
+```gdscript
+# Good: Event dialog with proper choice handling
+class_name EventDialogController extends AcceptDialog
+
+var current_event: GameEvent
+var choice_buttons: Array[Button] = []
+
+func display_event(event: GameEvent, target_player: Player):
+    current_event = event
+    
+    # Set up dialog content
+    $Content/Title.text = event.title
+    $Content/Description.text = format_event_description(event, target_player)
+    
+    # Create choice buttons
+    setup_choice_buttons(event.choices)
+    
+    # Show psychology preview for each choice
+    update_choice_previews(event, target_player)
+    
+    popup_centered()
+
+func setup_choice_buttons(choices: Array[EventChoice]):
+    # Clear existing buttons
+    for button in choice_buttons:
+        button.queue_free()
+    choice_buttons.clear()
+    
+    # Create new choice buttons
+    for i in range(choices.size()):
+        var choice = choices[i]
+        var button = Button.new()
+        button.text = choice.text
+        button.pressed.connect(_on_choice_selected.bind(i))
+        $Content/Choices.add_child(button)
+        choice_buttons.append(button)
+
+func _on_choice_selected(choice_index: int):
+    if current_event and choice_index < current_event.choices.size():
+        var choice = current_event.choices[choice_index]
+        EventManager.process_event_choice(current_event, choice)
+        hide()
+```
+
+## UI Component Performance
+
+```gdscript
+# Good: Efficient UI updates with dirty flagging
+class_name TeamDashboardController extends Control
+
+var dirty_flags: Dictionary = {
+    "chemistry": false,
+    "player_list": false,
+    "statistics": false
+}
+var update_timer: Timer
+
+func _ready():
+    # Update UI periodically, not every frame
+    update_timer = Timer.new()
+    update_timer.wait_time = 0.5  # Update twice per second
+    update_timer.timeout.connect(_update_ui_elements)
+    update_timer.autostart = true
+    add_child(update_timer)
+
+func _update_ui_elements():
+    if dirty_flags.chemistry:
+        update_team_chemistry_display()
+        dirty_flags.chemistry = false
+    
+    if dirty_flags.player_list:
+        refresh_player_list()
+        dirty_flags.player_list = false
+    
+    if dirty_flags.statistics:
+        update_team_statistics()
+        dirty_flags.statistics = false
+
+func mark_chemistry_dirty():
+    dirty_flags.chemistry = true
+```
+
+## Accessibility & UX Requirements
+
+- Implement keyboard navigation for all interactive elements
+- Provide text alternatives for visual mood indicators
+- Support scaling UI for different screen sizes
+- Use consistent color schemes with colorblind consideration
+- Implement proper focus management for dialogs and popups
+- Add loading states for any operations taking >100ms
+- Provide undo/redo for critical player management decisions
+
+## UI Data Binding Patterns
+
+- Never store game state in UI nodes - always reference core data
+- Use signals for UI updates, not polling
+- Implement proper cleanup when switching between UI screens
+- Cache UI resources (textures, fonts) but not game data
+- Use object pooling for frequently created UI elements (notifications, list items)

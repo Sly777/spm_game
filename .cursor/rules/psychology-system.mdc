@@ -1,0 +1,123 @@
+---
+description: SPM Psychology System - Mood, Personality, Relationships
+globs:
+  - "scripts/psychology/**/*.gd"
+  - "scripts/autoloads/PsychologyEngine.gd"
+alwaysApply: false
+---
+
+# Psychology System Architecture
+
+## Core Psychology Principles
+
+- **Mood as modifiers**: Moods affect performance as percentage modifiers (-1.0 to +1.0)
+- **Personality drives base behavior**: Personality types determine how players react to events
+- **Relationships have weight**: Manager relationships weighted more heavily than peer relationships
+- **Memory system**: Players remember mood-affecting events with decay over time
+- **Situational context**: Same mood has different effects in different situations
+
+## Mood System Patterns
+
+### Mood Calculation (Engine-level)
+
+```gdscript
+# Good: Context-aware mood effects
+func calculate_mood_effects(player_id: String, context: String) -> Dictionary:
+    var player_moods = active_player_moods.get(player_id, {})
+    var effects = {}
+    
+    for mood_type in player_moods:
+        var mood_value = player_moods[mood_type]
+        var context_multiplier = get_context_multiplier(mood_type, context)
+        var personality_modifier = get_personality_modifier(player_id, mood_type)
+        
+        var final_effect = (mood_value / 100.0) * context_multiplier * personality_modifier
+        effects[get_effect_type(mood_type)] = final_effect
+    
+    return effects
+
+# Bad: Simple linear calculation
+func calculate_mood_effects(player_id: String) -> Dictionary:
+    return {"performance": current_mood / 100.0}
+```
+
+### Mood Memory System
+
+```gdscript
+# Good: Decay system with event importance weighting
+class_name MoodMemory extends RefCounted
+
+var event_type: String
+var mood_impact: int
+var importance_level: int  # 1-5, affects decay rate
+var timestamp: int
+var decay_rate: float
+
+func get_current_impact() -> float:
+    var time_passed = Time.get_unix_time_from_system() - timestamp
+    var days_passed = time_passed / (24 * 60 * 60)
+    var decay_factor = pow(decay_rate, days_passed / importance_level)
+    return mood_impact * decay_factor
+```
+
+### Personality Type Integration
+
+```gdscript
+# Good: Personality affects event interpretation
+func process_event_for_player(player_id: String, event: GameEvent) -> Dictionary:
+    var personality = get_player_personality(player_id)
+    var base_mood_impact = event.mood_effects
+    
+    match personality.type:
+        "Prima Donna":
+            # Amplify negative reactions to criticism, reduce positive from praise
+            if event.category == "criticism":
+                base_mood_impact *= 1.5
+            elif event.category == "praise":
+                base_mood_impact *= 0.7
+        "Team Player":
+            # Opposite reaction pattern
+            if event.category == "team_success":
+                base_mood_impact *= 1.3
+    
+    return apply_mood_changes(player_id, base_mood_impact)
+```
+
+### Relationship System Patterns
+
+```gdscript
+# Good: Weighted relationship influence
+func calculate_relationship_mood_effect(player_id: String) -> float:
+    var total_effect = 0.0
+    var player = get_player(player_id)
+    
+    # Manager relationship (highest weight)
+    var manager_rel = player.manager_relationship / 100.0
+    total_effect += manager_rel * 0.4
+    
+    # Teammate relationships (medium weight, averaged)
+    var teammate_average = get_average_teammate_relationship(player_id) / 100.0
+    total_effect += teammate_average * 0.3
+    
+    # Fan connection (lower weight)
+    var fan_rel = player.fan_connection / 100.0
+    total_effect += fan_rel * 0.1
+    
+    return clamp(total_effect, -1.0, 1.0)
+```
+
+## Performance & Caching Rules
+
+- Cache complex psychology calculations with composite keys (player_id + context + mood_hash)
+- Use batch processing for psychology updates (max 5 players per frame)
+- Implement dirty flagging for mood changes to avoid unnecessary recalculations
+- Clear cache entries when base data changes (relationships, personality)
+- Use object pooling for temporary mood calculation objects
+
+## Psychology Integration Requirements
+
+- Never modify Player mood properties directly - use PsychologyEngine
+- Always provide event source context for mood changes
+- Consider personality type in all mood calculations
+- Implement proper mood decay over time
+- Log significant mood changes for debugging psychology balance

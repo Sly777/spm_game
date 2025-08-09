@@ -1,0 +1,157 @@
+---
+description: SPM Event System - Event Management, Processing, Chains
+globs:
+  - "scripts/events/**/*.gd"
+  - "scripts/autoloads/EventManager.gd"
+alwaysApply: false
+---
+
+# Event System Architecture
+
+## Event System Principles
+
+- **Data-driven events**: Events loaded from JSON, not hardcoded
+- **Weighted probability**: Events have probability weights affected by game state
+- **Choice consequences**: Player choices affect psychology, relationships, and future events
+- **Event chains**: Complex events can trigger follow-up events
+- **Cooldown system**: Prevent event spam with appropriate cooldowns
+
+## Event Class Structure
+
+```gdscript
+class_name GameEvent extends RefCounted
+
+var id: String
+var title: String
+var description: String
+var category: String  # "training", "media", "personal", "team_dynamics"
+var probability_weight: int = 100
+var cooldown_days: int = 0
+var prerequisites: Dictionary = {}
+var choices: Array[EventChoice] = []
+
+# Psychology integration
+var mood_effects: Dictionary = {}  # Default mood effects
+var relationship_effects: Dictionary = {}  # Default relationship changes
+var personality_reactions: Dictionary = {}  # Personality-specific modifications
+```
+
+## Event Processing Patterns
+
+```gdscript
+# Good: Comprehensive event evaluation
+func evaluate_event_trigger(event: GameEvent) -> bool:
+    # Check cooldown
+    if is_event_on_cooldown(event.id):
+        return false
+    
+    # Check prerequisites  
+    if not check_prerequisites(event.prerequisites):
+        return false
+    
+    # Check probability with current game state modifiers
+    var adjusted_probability = calculate_adjusted_probability(event)
+    return randf() * 100 < adjusted_probability
+
+func calculate_adjusted_probability(event: GameEvent) -> float:
+    var base_prob = event.probability_weight
+    var game_state_modifier = 1.0
+    
+    # Adjust based on team chemistry, recent events, etc.
+    if event.category == "team_conflict" and team.team_chemistry < 30:
+        game_state_modifier *= 2.0  # More likely when chemistry is poor
+    
+    return base_prob * game_state_modifier
+```
+
+### Event Choice Processing
+
+```gdscript
+# Good: Choice effects with psychology integration
+func process_event_choice(event: GameEvent, choice: EventChoice, player: Player) -> Dictionary:
+    var effects = {
+        "mood_changes": {},
+        "relationship_changes": {},
+        "stat_changes": {},
+        "future_events": []
+    }
+    
+    # Base effects from choice
+    effects.mood_changes = choice.mood_effects.duplicate()
+    effects.relationship_changes = choice.relationship_effects.duplicate()
+    
+    # Apply personality modifications
+    if player.personality_type in event.personality_reactions:
+        var personality_mods = event.personality_reactions[player.personality_type]
+        apply_personality_modifications(effects, personality_mods)
+    
+    # Apply management style modifications if manager choice
+    if choice.choice_type == "manager_decision":
+        apply_management_style_effects(effects, GameManager.current_manager.management_style)
+    
+    return effects
+```
+
+### Event Chain Management
+
+```gdscript
+# Good: Event chain with state tracking
+class_name EventChain extends RefCounted
+
+var chain_id: String
+var events: Array[GameEvent] = []
+var current_step: int = 0
+var chain_state: Dictionary = {}
+var completion_conditions: Dictionary = {}
+
+func progress_chain(choice_result: String) -> bool:
+    chain_state["step_" + str(current_step) + "_choice"] = choice_result
+    current_step += 1
+    
+    # Check if chain should continue
+    if current_step >= events.size():
+        return complete_chain()
+    
+    # Schedule next event in chain
+    var next_event = events[current_step]
+    EventManager.schedule_event(next_event, calculate_chain_delay())
+    return true
+```
+
+### Event JSON Structure Requirements
+
+```json
+{
+  "id": "prima_donna_media_attention",
+  "title": "Media Spotlight",
+  "category": "media",
+  "probability_weight": 75,
+  "prerequisites": {
+    "player_personality": "Prima Donna",
+    "recent_performance": ">70",
+    "games_played": ">5"
+  },
+  "choices": [
+    {
+      "id": "encourage_interviews",
+      "text": "Encourage media engagement",
+      "mood_effects": {"confident": 15, "attention_seeking": 10},
+      "relationship_effects": {"manager": -5, "fans": 20}
+    }
+  ],
+  "personality_reactions": {
+    "Prima Donna": {
+      "mood_multiplier": 1.3,
+      "attention_bonus": true
+    }
+  }
+}
+```
+
+## Event System Performance
+
+- Limit event checks to every 2-3 seconds, not every frame
+- Cache event probability calculations
+- Use weighted random selection for efficient event picking
+- Batch process multiple event evaluations
+- Implement event pooling for memory efficiency

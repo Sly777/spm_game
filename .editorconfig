@@ -1,0 +1,73 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = tab
+indent_size = 4
+
+# GDScript files
+[*.gd]
+indent_style = tab
+indent_size = 4
+
+# JSON files (for data files, save files, config)
+[*.json]
+indent_style = space
+indent_size = 2
+
+# YAML files (if any)
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+indent_style = space
+indent_size = 2
+
+# Godot project files
+[project.godot]
+indent_style = space
+indent_size = 1
+
+# Godot scene files (.tscn)
+[*.tscn]
+indent_style = space
+indent_size = 1
+
+# Godot resource files (.tres)
+[*.tres]
+indent_style = space
+indent_size = 1
+
+# Godot import files
+[*.import]
+indent_style = space
+indent_size = 1
+
+# Configuration files
+[*.{cfg,ini}]
+indent_style = space
+indent_size = 2
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Text files
+[*.txt]
+indent_style = space
+indent_size = 2
+
+# CSV files (preserve spaces)
+[*.csv]
+trim_trailing_whitespace = false

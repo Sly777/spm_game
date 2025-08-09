@@ -1,0 +1,78 @@
+---
+description: SPM Entity Classes - Player, Manager, Team Standards
+globs:
+  - "scripts/core/entities/**/*.gd"
+  - "scripts/core/base/**/*.gd"
+alwaysApply: false
+---
+
+# Entity Classes Standards
+
+## Core Entity Requirements
+
+- **Extend BaseEntity**: All entities inherit from BaseEntity for ID, name, timestamps
+- **Implement serialization**: `to_dictionary()` and `from_dictionary()` methods required
+- **Psychology integration**: Entities interact with PsychologyEngine, not direct mood manipulation
+- **Relationship bounds**: Use GameConstants for min/max relationship values
+- **Input validation**: Clamp ages, skills, relationships within valid ranges
+
+@scripts/core/base/BaseEntity.gd
+@scripts/utils/constants/GameConstants.gd
+
+## Player Class Patterns
+
+```gdscript
+# Good: Psychology integration
+var mood_effects = PsychologyEngine.get_player_mood_effects(id, "training")
+performance_modifier = 1.0 + mood_effects.get("performance", 0.0)
+
+# Bad: Direct mood access
+performance_modifier = 1.0 + (current_moods.get("confident", 0) / 100.0)
+```
+
+Manager Class Patterns
+
+## Manager Class Patterns
+
+```gdscript
+# Good: Management style affects calculations
+func get_authority_effectiveness() -> float:
+    var base_authority = authority / 100.0
+    match management_style:
+        "Authoritarian": return base_authority * 1.2
+        "Democratic": return base_authority * 0.8
+    return base_authority
+
+# Bad: Static calculations
+func get_authority_effectiveness() -> float:
+    return authority / 100.0
+```
+
+## Team Class Patterns
+
+```gdscript
+# Good: Team chemistry considers all relationship layers  
+func calculate_team_chemistry() -> int:
+    var manager_player_weight = 1.5
+    var player_player_weight = 1.0
+    # Complex calculation considering all relationships
+
+# Bad: Simple average
+func calculate_team_chemistry() -> int:
+    return (team_morale + team_discipline) / 2
+```
+
+## Required Methods for All Entities
+
+- _init() with parameter validation
+- to_dictionary() for save system
+- from_dictionary() for load system
+- get_display_name() for UI
+- Error handling for null references and invalid states
+
+## Performance Considerations
+
+- Cache expensive calculations (overall ratings, chemistry)
+- Use object pooling for temporary calculation objects
+- Avoid creating new objects in update loops
+- Prefer integer math over floating point where possible

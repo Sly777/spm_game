@@ -44,21 +44,21 @@ grow_vertical = 2
 theme_override_constants/separation = 10
 
 [node name="NewCareerButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "New Career"
 
 [node name="LoadCareerButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Load Career"
 
 [node name="SettingsButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Settings"
 
 [node name="ExitButton" type="Button" parent="VBoxContainer"]
-layout_mode = 2
 custom_minimum_size = Vector2(180, 40)
+layout_mode = 2
 text = "Exit"

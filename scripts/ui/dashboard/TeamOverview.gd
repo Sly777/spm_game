@@ -8,6 +8,9 @@ extends Control
 @onready var team_morale_label = $MainContainer/TeamInfoPanel/StatsContainer/TeamMoraleLabel
 @onready var players_list_container = $MainContainer/PlayersPanel/ScrollContainer/PlayersList
 
+# Custom signal for player selection
+signal player_selected(player: Player, index: int)
+
 func _ready():
 	print("TeamOverview scene loaded") # Debug message
 
@@ -16,6 +19,9 @@ func _ready():
 
 	if GameManager.current_team:
 		setup_team_display()
+		# Connect our custom signal
+		player_selected.connect(_on_player_selected)
+		create_test_events()
 	else:
 		print("No team found in GameManager!")
 		team_name_label.text = "No Team Loaded"
@@ -127,6 +133,19 @@ func create_player_card(player: Player, number: int):
 
 	player_container.add_child(info_container)
 
+	# Make the entire player container clickable
+	var clickable_button = Button.new()
+	clickable_button.flat = true  # Make it look like a regular container
+	clickable_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	clickable_button.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	# Connect the button press to emit our custom signal
+	var player_index = number - 1  # Convert to 0-based index
+	clickable_button.pressed.connect(func(): player_selected.emit(player, player_index))
+
+	# Add the button as a child of the player container
+	player_container.add_child(clickable_button)
+
 	# Add some spacing with a separator
 	players_list_container.add_child(player_container)
 
@@ -150,3 +169,19 @@ func get_dominant_mood(player: Player) -> String:
 			strongest_mood = mood_type
 
 	return strongest_mood.capitalize()
+
+func _on_player_selected(player: Player):
+	print("Selected player: ", player.player_name)
+	print("Personality: ", player.personality_type, " - ", player.get_personality_description())
+	print("Current moods: ", player.current_moods)
+	print("Performance modifier: ", player.get_total_performance_modifier())
+
+func create_test_events():
+	if GameManager.current_team.players.size() > 0:
+		var player1 = GameManager.current_team.players[0]
+		var player2 = GameManager.current_team.players[1]
+
+		MoodSystem.trigger_mood_event(player1, "scored_goal")
+		MoodSystem.trigger_mood_event(player2, "missed_penalty")
+
+		print("Applied test mood events")

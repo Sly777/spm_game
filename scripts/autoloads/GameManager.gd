@@ -31,8 +31,8 @@ func create_initial_squad():
 	"""Create a basic squad of players for testing"""
 	var player_names = ["John Smith", "Mike Johnson", "David Wilson", "Chris Brown"]
 
-	for name in player_names:
-		var player = Player.new(name)
+	for player_name in player_names:
+		var player = Player.new(player_name)
 		current_team.add_player(player)
 
 	print("Created initial squad with ", current_team.get_player_count(), " players")

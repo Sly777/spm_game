@@ -22,6 +22,6 @@ var psychology_understanding: int = 50
 var team_relationships: Dictionary = {}
 
 func _init(name: String = "New Manager"):
-    super._init()
-    manager_name = name
-    age = randi_range(25, 60)
+	super._init()
+	manager_name = name
+	age = randi_range(25, 60)

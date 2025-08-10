@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "geequlim.godot-tools",
-        "eddiedover.gdscript-formatter-linter"
+        "eddiedover.gdscript-formatter-linter",
+        "dorianmassoulier.repomix-runner"
     ]
 }

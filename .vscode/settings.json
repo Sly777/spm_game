@@ -1,3 +1,12 @@
 {
-    "godotTools.editorPath.godot4": "/Applications/Godot.app"
+    "godotTools.editorPath.godot4": "/Applications/Godot.app",
+    "repomix.output.parsableStyle": true,
+    "repomix.output.headerText": "SoccerPsychologyManagement",
+    "repomix.output.removeEmptyLines": true,
+    "repomix.output.includeEmptyDirectories": false,
+    "repomix.output.copyToClipboard": false,
+    "repomix.ignore.customPatterns": [
+        "docs/**/*"
+    ],
+    "repomix.ignore.useDefaultPatterns": true
 }
